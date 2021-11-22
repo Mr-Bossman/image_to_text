@@ -25,7 +25,6 @@ static cv::Ptr<cv::freetype::FreeType2> ft2;
 static std::atomic_flag canRead = ATOMIC_FLAG_INIT;
 int main(int argc, char **argv)
 {
-	
 	int height = strtol(argv[2], NULL, 10);
 	int width = strtol(argv[3], NULL, 10);
 	cv::VideoCapture cap(argv[1]);
@@ -38,6 +37,7 @@ int main(int argc, char **argv)
 		{
 			break;
 		}
+		cv::resize(img,img,cv::Size(width*8,height*8),cv::INTER_CUBIC);
 		display(img, height, width);
 	}
 	cv::waitKey(0);
@@ -133,8 +133,8 @@ static cv::Mat img_pallet(cv::Mat& img, int pallet, cv::Mat &centers)
 	img.convertTo(img, CV_32F);
 	cv::Mat samples, label, result(img.size(), CV_8UC1);
 	samples = img.reshape(1, img.total());
-	const double ret = cv::kmeans(samples, pallet, label, cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 6, 0.1),
-				10, cv::KMEANS_RANDOM_CENTERS, centers);
+	const double ret = cv::kmeans(samples, pallet, label, cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 4, 1),
+				4, cv::KMEANS_RANDOM_CENTERS, centers);
 	centers = centers.reshape(3, 0);
 	label = label.reshape(1, img.rows);
 	/*for (int i = 0; i < centers.rows; i++)
