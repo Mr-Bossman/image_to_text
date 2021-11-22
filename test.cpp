@@ -3,6 +3,7 @@
 #include <sstream>
 #include <cmath>
 #include <atomic>
+#include <thread>
 #include <opencv2/opencv.hpp>
 #include <opencv2/freetype.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -21,6 +22,7 @@ static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N);
 static cv::Mat combineImage(const std::vector<cv::Mat> &matrix, int N);
 static void display(const cv::Mat &img, int height, int width);
 static cv::Ptr<cv::freetype::FreeType2> ft2;
+static std::atomic_flag canRead = ATOMIC_FLAG_INIT;
 int main(int argc, char **argv)
 {
 	int height = strtol(argv[1], NULL, 10);
@@ -50,8 +52,8 @@ static void display(const cv::Mat& img, int height, int width)
 	std::vector<cv::Vec3f> fg(matrix.size());
 	std::string cha;
 	cha.resize(matrix.size(),' ');
-	//#pragma omp parallel
-	//#pragma omp for
+	#pragma omp parallel
+	#pragma omp for
 	for (size_t i = 0; i < matrix.size(); i++)
 	{
 		cv::Mat clusters,tmp;
@@ -83,6 +85,7 @@ static cv::Mat text(int fontHeight, const std::string &text, const cv::Ptr<cv::f
 	int thickness = -1;
 	int linestyle = 8;
 	int baseline = 0;
+	while(canRead.test_and_set()){std::this_thread::yield();}
 	const cv::Size textSize = ft2->getTextSize(text, fontHeight, thickness, &baseline);
 	if (thickness > 0)
 	{
@@ -94,29 +97,33 @@ static cv::Mat text(int fontHeight, const std::string &text, const cv::Ptr<cv::f
 	cv::Point textOrg(0,height);
 	ft2->putText(img, text, textOrg, fontHeight,
 		     cv::Scalar::all(fg[0]), thickness, linestyle, true);
+	canRead.clear();
 	cv::cvtColor(img,out,cv::COLOR_BGR2GRAY);
 
 	return out;
 }
 static char textImage(const cv::Mat &copy)
 {
-	cv::Mat tmp;
 
 	const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()";
 	std::pair<char,double> best(' ',1.0);
-	std::string b;
-	//#pragma omp parallel
-	//#pragma omp for
+	std::atomic_flag update = ATOMIC_FLAG_INIT;
+	#pragma omp parallel
+	#pragma omp for
 	for (auto c : str)
 	{
+		cv::Mat tmp;
+		std::string b;
 		b = c;
 		cv::resize(text(copy.size().height,b,ft2,cv::Scalar(255),cv::Scalar(0)),tmp,copy.size(),cv::INTER_CUBIC);
 		cv::bitwise_xor(tmp,copy,tmp);
 		const double perc = (double)cv::countNonZero(tmp) / (double)tmp.size().area();
+		while(update.test_and_set()){std::this_thread::yield();}
 		if(best.second > perc){
 			best.first = c;
 			best.second = perc;
 		}
+		update.clear();
 	}
 	return best.first;
 }
