@@ -25,9 +25,10 @@ static cv::Ptr<cv::freetype::FreeType2> ft2;
 static std::atomic_flag canRead = ATOMIC_FLAG_INIT;
 int main(int argc, char **argv)
 {
-	int height = strtol(argv[1], NULL, 10);
-	int width = strtol(argv[2], NULL, 10);
-	cv::VideoCapture cap("test.mp4"); // video
+	
+	int height = strtol(argv[2], NULL, 10);
+	int width = strtol(argv[3], NULL, 10);
+	cv::VideoCapture cap(argv[1]);
 	ft2 = cv::freetype::createFreeType2();
 	ft2->loadFontData("./test.ttf", 0);
 	cv::Mat img;
@@ -105,19 +106,19 @@ static cv::Mat text(int fontHeight, const std::string &text, const cv::Ptr<cv::f
 static char textImage(const cv::Mat &copy)
 {
 
-	const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()";
+	const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()[]{}\\|:;>.<,?`~/-_=+";
 	std::pair<char,double> best(' ',1.0);
 	std::atomic_flag update = ATOMIC_FLAG_INIT;
 	#pragma omp parallel
 	#pragma omp for
 	for (auto c : str)
 	{
-		cv::Mat tmp;
 		std::string b;
 		b = c;
-		cv::resize(text(copy.size().height,b,ft2,cv::Scalar(255),cv::Scalar(0)),tmp,copy.size(),cv::INTER_CUBIC);
+		cv::Mat tmp,cmp = text(copy.size().height,b,ft2,cv::Scalar(255),cv::Scalar(0));
+		cv::resize(cmp,tmp,copy.size(),cv::INTER_CUBIC);
 		cv::bitwise_xor(tmp,copy,tmp);
-		const double perc = (double)cv::countNonZero(tmp) / (double)tmp.size().area();
+		const double perc = (double)cv::countNonZero(tmp) / ((double)tmp.size().area() * (double)(tmp.size().area() - cv::countNonZero(cmp)));
 		while(update.test_and_set()){std::this_thread::yield();}
 		if(best.second > perc){
 			best.first = c;
@@ -132,7 +133,7 @@ static cv::Mat img_pallet(cv::Mat& img, int pallet, cv::Mat &centers)
 	img.convertTo(img, CV_32F);
 	cv::Mat samples, label, result(img.size(), CV_8UC1);
 	samples = img.reshape(1, img.total());
-	const double ret = cv::kmeans(samples, pallet, label, cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 10, 0.1),
+	const double ret = cv::kmeans(samples, pallet, label, cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 6, 0.1),
 				10, cv::KMEANS_RANDOM_CENTERS, centers);
 	centers = centers.reshape(3, 0);
 	label = label.reshape(1, img.rows);
@@ -142,6 +143,7 @@ static cv::Mat img_pallet(cv::Mat& img, int pallet, cv::Mat &centers)
 		cv::Mat mask(label == i);
 		result.setTo(color, mask);
 	}*/
+	// i dont think they are sorted
 	cv::Mat maska(label == 1);
 	result.setTo(cv::Scalar(255), maska);
 	cv::Mat maskb(label == 0);
@@ -151,10 +153,8 @@ static cv::Mat img_pallet(cv::Mat& img, int pallet, cv::Mat &centers)
 
 static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N)
 {
-	// All images should be the same size ...
 	int width = image.cols / M;
 	int height = image.rows / N;
-	// ... except for the Mth column and the Nth row
 	int width_last_column = width + (image.cols % width);
 	int height_last_row = height + (image.rows % height);
 
@@ -164,7 +164,6 @@ static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N)
 	{
 		for (int j = 0; j < M; ++j)
 		{
-			// Compute the region to crop from
 			cv::Rect roi(width * j,
 				     height * i,
 				     (j == (M - 1)) ? width_last_column : width,
@@ -180,7 +179,6 @@ static cv::Mat combineImage(const std::vector<cv::Mat> &matrix, int N)
 	int M = matrix.size() / N;
 	int cols = matrix[0].cols * M;
 	int rows = matrix[0].rows * N;
-	// ... except for the Mth column and the Nth row
 	int width_last_column = matrix[0].cols + (cols % matrix[0].cols);
 	int height_last_row = matrix[0].rows + (rows % matrix[0].rows);
 
