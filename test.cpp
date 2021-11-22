@@ -2,63 +2,74 @@
 #include <string>
 #include <sstream>
 #include <cmath>
+#include <atomic>
 #include <opencv2/opencv.hpp>
 #include <opencv2/freetype.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/objdetect/objdetect.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <unistd.h>
 
 static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N);
 static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor);
-static cv::Mat text(int fontHeight, std::string text, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg, int &height, int &width);
-static cv::Mat test();
-static cv::Mat textImage(const cv::Mat &centers);
-static cv::Mat img_pallet(cv::Mat img, int pallet, cv::Mat &centers);
+static cv::Mat text(int fontHeight,const std::string &text, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg);
+static char textImage(const cv::Mat& copy);
+static cv::Mat img_pallet(cv::Mat &img, int pallet, cv::Mat &centers);
 static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N);
 static cv::Mat combineImage(const std::vector<cv::Mat> &matrix, int N);
-static void display(cv::Mat img, int height, int width);
-
+static void display(const cv::Mat &img, int height, int width);
+static cv::Ptr<cv::freetype::FreeType2> ft2;
 int main(int argc, char **argv)
 {
 	int height = strtol(argv[1], NULL, 10);
 	int width = strtol(argv[2], NULL, 10);
 	cv::VideoCapture cap("test.mp4"); // video
-
+	ft2 = cv::freetype::createFreeType2();
+	ft2->loadFontData("./test.ttf", 0);
+	cv::Mat img;
 	while (1)
 	{
-		cv::Mat img;
 		if (!cap.read(img))
 		{
 			break;
 		}
 		display(img, height, width);
 	}
-	//cv::waitKey(0);
-	//cv::destroyAllWindows();
+	cv::waitKey(0);
+	cv::destroyAllWindows();
 
 	return 0;
 }
-static void display(cv::Mat img, int height, int width)
+static void display(const cv::Mat& img, int height, int width)
 {
-	std::vector<cv::Mat> pic;
+	printf("\033[2J\033[0H");
 	auto matrix = splitImage(img, width, height);
-	for (auto cut : matrix)
+	std::vector<cv::Vec3f> bg(matrix.size());
+	std::vector<cv::Vec3f> fg(matrix.size());
+	std::string cha;
+	cha.resize(matrix.size(),' ');
+	//#pragma omp parallel
+	//#pragma omp for
+	for (size_t i = 0; i < matrix.size(); i++)
 	{
-		cv::Mat clusters;
-		img_pallet(cut, 2, clusters);
-		pic.push_back(clusters);
+		cv::Mat clusters,tmp;
+		tmp = img_pallet(matrix[i], 2, clusters);
+		fg[i] = clusters.at<cv::Vec3f>(1);
+		bg[i] = clusters.at<cv::Vec3f>(0);
+		cha[i] = textImage(tmp);
 	}
 
-	for (size_t i = 0; i < pic.size(); i++)
+	for (size_t i = 0; i < fg.size(); i++)
 	{
-		Pcolor('X', pic[i].at<cv::Vec3f>(0), pic[i].at<cv::Vec3f>(1));
 		if (i % width == 0)
 			puts("");
-		//matrix[i] = textImage(clusters);
+		Pcolor(cha[i],fg[i], bg[i]);
+
 	}
-	printf("\033[0m\n\033[2J\033[0H");
-	//imshow("img", combineImage(matrix,HEIGHT));
+	printf("\033[0m\n");
+	//cv::imshow("img", combineImage(matrix,height));
 }
 static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor)
 {
@@ -67,66 +78,67 @@ static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor)
 	printf("%c", c);
 }
 
-static cv::Mat text(int fontHeight, std::string text, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg, int &height, int &width)
+static cv::Mat text(int fontHeight, const std::string &text, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg)
 {
 	int thickness = -1;
 	int linestyle = 8;
 	int baseline = 0;
-	cv::Size textSize = ft2->getTextSize(text, fontHeight, thickness, &baseline);
+	const cv::Size textSize = ft2->getTextSize(text, fontHeight, thickness, &baseline);
 	if (thickness > 0)
 	{
 		baseline += thickness;
 	}
-	height = textSize.height;
-	width = textSize.width;
-	cv::Mat img(textSize.width, textSize.height, CV_8UC3, bg);
-	cv::Point textOrg((img.cols - textSize.width) / 2,
-			  (img.rows + textSize.height) / 2);
+	int height = textSize.height * 1.25;
+	int width = textSize.width * 1.25;
+	cv::Mat img(height,width, CV_8UC3, cv::Scalar::all(bg[0])),out(height,width, CV_8UC1, bg);
+	cv::Point textOrg(0,height);
 	ft2->putText(img, text, textOrg, fontHeight,
-		     fg, thickness, linestyle, true);
-	return img;
+		     cv::Scalar::all(fg[0]), thickness, linestyle, true);
+	cv::cvtColor(img,out,cv::COLOR_BGR2GRAY);
+
+	return out;
 }
-
-static cv::Mat test()
+static char textImage(const cv::Mat &copy)
 {
-	cv::Ptr<cv::freetype::FreeType2> ft2 = cv::freetype::createFreeType2();
-	ft2->loadFontData("./test.ttf", 0);
-	int height, width;
-	std::string str = "abcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()";
+	cv::Mat tmp;
 
+	const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()";
+	std::pair<char,double> best(' ',1.0);
+	std::string b;
+	//#pragma omp parallel
+	//#pragma omp for
 	for (auto c : str)
 	{
-		std::string b;
 		b = c;
-		text(12, b, ft2, cv::Scalar(0, 0, 0), cv::Scalar(0, 0, 0), height, width);
+		cv::resize(text(copy.size().height,b,ft2,cv::Scalar(255),cv::Scalar(0)),tmp,copy.size(),cv::INTER_CUBIC);
+		cv::bitwise_xor(tmp,copy,tmp);
+		const double perc = (double)cv::countNonZero(tmp) / (double)tmp.size().area();
+		if(best.second > perc){
+			best.first = c;
+			best.second = perc;
+		}
 	}
-	return cv::Mat(10, 10, CV_8UC3);
+	return best.first;
 }
-static cv::Mat textImage(const cv::Mat &centers)
-{
-	cv::Ptr<cv::freetype::FreeType2> ft2 = cv::freetype::createFreeType2();
-	ft2->loadFontData("./test.ttf", 0);
-	int height, width;
-	std::string b = "X";
-	cv::Mat tmp = text(20, b, ft2, centers.at<cv::Vec3f>(0), centers.at<cv::Vec3f>(1), height, width), ret;
-	cv::resize(tmp, ret, cv::Size(20, 20), cv::INTER_CUBIC);
-	return tmp;
-}
-static cv::Mat img_pallet(cv::Mat img, int pallet, cv::Mat &centers)
+static cv::Mat img_pallet(cv::Mat& img, int pallet, cv::Mat &centers)
 {
 	img.convertTo(img, CV_32F);
-	cv::Mat samples, label, result(img.size(), CV_8UC3);
+	cv::Mat samples, label, result(img.size(), CV_8UC1);
 	samples = img.reshape(1, img.total());
-	double ret = cv::kmeans(samples, pallet, label, cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 10, 0.1),
+	const double ret = cv::kmeans(samples, pallet, label, cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 10, 0.1),
 				10, cv::KMEANS_RANDOM_CENTERS, centers);
 	centers = centers.reshape(3, 0);
 	label = label.reshape(1, img.rows);
-	for (int i = 0; i < centers.rows; i++)
+	/*for (int i = 0; i < centers.rows; i++)
 	{
 		cv::Scalar color = centers.at<cv::Vec3f>(i);
 		cv::Mat mask(label == i);
-		result.setTo(color, mask); // set cluster color
-	}
+		result.setTo(color, mask);
+	}*/
+	cv::Mat maska(label == 1);
+	result.setTo(cv::Scalar(255), maska);
+	cv::Mat maskb(label == 0);
+	result.setTo(cv::Scalar(0), maskb);
 	return result;
 }
 

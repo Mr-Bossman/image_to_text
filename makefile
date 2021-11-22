@@ -1,11 +1,11 @@
 BIN_DIR= out
 CC = g++
-CFLAGS = -std=c++11 $(shell pkg-config --cflags opencv4)
-LIBS = $(shell pkg-config --libs opencv4)
+CFLAGS = -std=c++11 $(shell pkg-config --cflags opencv4) -fopenmp
+LIBS = $(shell pkg-config --libs opencv4) -fopenmp
 
 all: clean main
 run: all
-	./main
+	./main 4 5
 clean:
 	rm -f main
 	rm -f out/*
