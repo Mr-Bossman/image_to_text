@@ -3,11 +3,12 @@ CC = g++
 CFLAGS = -std=c++11 $(shell pkg-config --cflags opencv4) -fopenmp -O3
 LIBS = $(shell pkg-config --libs opencv4) -fopenmp
 
-all: clean main
+all: clean main display
 run: all
 	./main 4 5
 clean:
 	rm -f main
+	rm -f display
 	rm -f out/*
 $(BIN_DIR)/main.o:
 	${CC} $(CFLAGS) -g -c render.cpp -o $(BIN_DIR)/main.o
