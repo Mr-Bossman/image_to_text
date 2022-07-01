@@ -10,10 +10,10 @@ clean:
 	rm -f main
 	rm -f out/*
 $(BIN_DIR)/main.o:
-	${CC} $(CFLAGS) -c render.cpp -o $(BIN_DIR)/main.o
+	${CC} $(CFLAGS) -g -c render.cpp -o $(BIN_DIR)/main.o
 
 main: $(BIN_DIR)/main.o
-	${CC} -o main $(BIN_DIR)/main.o $(LIBS)
+	${CC} -g -o main $(BIN_DIR)/main.o $(LIBS)
 
 $(BIN_DIR)/display.o:
 	${CC} $(CFLAGS) -c display.cpp -o $(BIN_DIR)/display.o
