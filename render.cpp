@@ -74,7 +74,7 @@ static void display(const cv::Mat& img, int height, int width)
 
 	for (size_t i = 0; i < fg.size(); i++)
 	{
-		if (i % width == 0)
+		if (i && i % width == 0)
 			puts("");
 		Pcolor(cha[i],fg[i], bg[i]);
 
