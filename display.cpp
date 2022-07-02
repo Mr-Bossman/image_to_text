@@ -3,25 +3,38 @@
 #include <fstream>
 #include <unistd.h>
 #include <sys/time.h>
+#include <bits/stdc++.h>
 
-uint64_t Tmicro(){
+uint64_t Tmicro()
+{
 	struct timeval time_now{};
 	gettimeofday(&time_now, nullptr);
-	return time_now.tv_usec;
+	return time_now.tv_sec*1000000 + time_now.tv_usec;
 }
 
+std::string getframe(std::ifstream &Dfile)
+{
+	std::string line, frame;
+	while (std::getline(Dfile, line))
+	{
+		frame += line + "\n";
+		if(line.substr(line.length()-3,line.length()-1)  == "[0m")
+			break;
+	}
+	return frame;
+}
 int main(int argc, char **argv)
 {
 	std::ifstream Dfile(argv[1]);
-	int fps = strtol(argv[2], NULL, 10);
-	std::string line;
-	uint64_t last = Tmicro();
-	while (std::getline(Dfile, line))
-	{
-		std::cout << line << std::endl;
-		if(line.substr(line.length()-3,line.length()-1)  == "[0m"){
-			usleep((1000000ull/fps) - (Tmicro()-last));
-			last = Tmicro();
+	int32_t Ftime = 1000000ull/strtol(argv[2], NULL, 10);
+	uint64_t start = Tmicro();
+	int32_t frame = 0;
+	while(true){
+		uint64_t delay = (Ftime*++frame)- (Tmicro()-start);
+		auto framedis = getframe(Dfile);
+		if(delay > 0){
+			std::cout << framedis << std::endl << delay << std::endl ;
+			usleep(delay);
 		}
 	}
 	return 0;
