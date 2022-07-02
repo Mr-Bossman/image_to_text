@@ -33,9 +33,11 @@ int main(int argc, char **argv)
 		uint64_t delay = (Ftime*++frame)- (Tmicro()-start);
 		auto framedis = getframe(Dfile);
 		if(delay > 0){
-			std::cout << framedis << std::endl << delay << std::endl ;
+			std::cout << framedis;
 			usleep(delay);
 		}
+		if(framedis.length() < 1)
+			break;
 	}
 	return 0;
 }
