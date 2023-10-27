@@ -17,7 +17,7 @@
 static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N);
 static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor);
 static cv::Mat text(int fontHeight,const std::string &text, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg);
-static char textImage(const cv::Mat& copy);
+static char textImage(const cv::Mat& copy, bool &swap_pallet);
 static cv::Mat img_pallet(cv::Mat &img, int pallet, cv::Mat &centers);
 static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N);
 static cv::Mat combineImage(const std::vector<cv::Mat> &matrix, int N);
@@ -70,11 +70,12 @@ static void display(const cv::Mat& img, int height, int width)
 	#pragma omp for
 	for (size_t i = 0; i < matrix.size(); i++)
 	{
+		bool swap_pallet = 0;
 		cv::Mat clusters,tmp;
 		tmp = img_pallet(matrix[i], 2, clusters);
-		fg[i] = clusters.at<cv::Vec3f>(1);
-		bg[i] = clusters.at<cv::Vec3f>(0);
-		cha[i] = textImage(tmp);
+		cha[i] = textImage(tmp, swap_pallet);
+		fg[i] = clusters.at<cv::Vec3f>(swap_pallet?0:1);
+		bg[i] = clusters.at<cv::Vec3f>(swap_pallet?1:0);
 	}
 	for (size_t i = 0; i < fg.size(); i++) {
 		if (i && i % width == 0)
@@ -110,7 +111,7 @@ static cv::Mat text(int fontHeight, const std::string &txt, const cv::Ptr<cv::fr
 	return out;
 }
 
-static char textImage(const cv::Mat &copy)
+static char textImage(const cv::Mat &copy, bool &swap_pallet)
 {
 	std::pair<char,double> best(' ',1.0);
 	std::atomic_flag update = ATOMIC_FLAG_INIT;
@@ -120,8 +121,11 @@ static char textImage(const cv::Mat &copy)
 	{
 		cv::Mat tmp;
 		cv::bitwise_xor(c.first,copy,tmp);
-		/* do the inverse of bits */
-		const double perc = (double)cv::countNonZero(tmp) / ((double)tmp.size().area() * (double)(tmp.size().area() - cv::countNonZero(c.first)));
+
+		const double perc1 = (double)cv::countNonZero(tmp) / ((double)tmp.size().area() * (double)(tmp.size().area() - cv::countNonZero(c.first)));
+		const double perc2 = (double)(tmp.size().area() - cv::countNonZero(tmp)) / ((double)tmp.size().area() * (double)(tmp.size().area() - cv::countNonZero(c.first)));
+		swap_pallet = perc1 < perc2;
+		const double perc = std::max(perc1,perc2);
 		while(update.test_and_set()){std::this_thread::yield();}
 		if(best.second > perc){
 			best.first = c.second;
