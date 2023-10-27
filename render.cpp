@@ -30,21 +30,25 @@ static std::vector<std::pair<cv::Mat,char>> chars;
 
 int main(int argc, char **argv)
 {
-	int height = strtol(argv[2], NULL, 10);
-	int width = strtol(argv[3], NULL, 10);
-	int Theight = strtol(argv[4], NULL, 10);
-	int Twidth = strtol(argv[5], NULL, 10);
+	if (argc != 6)
+	{
+		std::cout << "./" << argv[0] << " {video/image} {width of terminal (chars)} {height of terminal (chars)} {font width (px)} {font height (px)}" << std::endl;
+		exit(-1);
+	}
+	int width = strtol(argv[2], NULL, 10);
+	int height = strtol(argv[3], NULL, 10);
+	int Twidth = strtol(argv[4], NULL, 10);
+	int Theight = strtol(argv[5], NULL, 10);
 	cv::VideoCapture cap(argv[1]);
 	ft2 = cv::freetype::createFreeType2();
 	ft2->loadFontData("./test.ttf", 0);
-	chars = fillchars(Theight,Twidth);
+	chars = fillchars(Twidth,Theight);
 	cv::Mat img;
+
 	while (1)
 	{
 		if (!cap.read(img))
-		{
 			break;
-		}
 		cv::resize(img,img,cv::Size(width*Twidth,height*Theight),cv::INTER_CUBIC);
 		display(img, height, width);
 	}
@@ -53,6 +57,7 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
 static void display(const cv::Mat& img, int height, int width)
 {
 	printf("\033[2J\033[0H");
@@ -71,16 +76,14 @@ static void display(const cv::Mat& img, int height, int width)
 		bg[i] = clusters.at<cv::Vec3f>(0);
 		cha[i] = textImage(tmp);
 	}
-
-	for (size_t i = 0; i < fg.size(); i++)
-	{
+	for (size_t i = 0; i < fg.size(); i++) {
 		if (i && i % width == 0)
 			puts("");
 		Pcolor(cha[i],fg[i], bg[i]);
-
 	}
 	printf("\033[0m\n");
 }
+
 static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor)
 {
 	printf("\033[38;2;%u;%u;%um", (uint)fgcolor[2], (uint)fgcolor[1], (uint)fgcolor[0]);
@@ -96,7 +99,7 @@ static cv::Mat text(int fontHeight, const std::string &txt, const cv::Ptr<cv::fr
 	const cv::Size textSize = ft2->getTextSize(txt, fontHeight, thickness, &baseline);
 	if (thickness > 0)
 		baseline += thickness;
-	int height = textSize.height * 1.25;
+	int height = abs(textSize.height * 1.25);
 	int width = textSize.width * 1.25;
 	cv::Mat img(height,width, CV_8UC3, cv::Scalar::all(bg[0])),out(height,width, CV_8UC1, bg);
 	cv::Point textOrg(0,height);
@@ -106,6 +109,7 @@ static cv::Mat text(int fontHeight, const std::string &txt, const cv::Ptr<cv::fr
 
 	return out;
 }
+
 static char textImage(const cv::Mat &copy)
 {
 	std::pair<char,double> best(' ',1.0);
@@ -116,6 +120,7 @@ static char textImage(const cv::Mat &copy)
 	{
 		cv::Mat tmp;
 		cv::bitwise_xor(c.first,copy,tmp);
+		/* do the inverse of bits */
 		const double perc = (double)cv::countNonZero(tmp) / ((double)tmp.size().area() * (double)(tmp.size().area() - cv::countNonZero(c.first)));
 		while(update.test_and_set()){std::this_thread::yield();}
 		if(best.second > perc){
@@ -126,6 +131,7 @@ static char textImage(const cv::Mat &copy)
 	}
 	return best.first;
 }
+
 static std::vector<std::pair<cv::Mat,char>> fillchars(int width, int height){
 	const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890!@#$%^&*()[]{}\\|:;>.<,?`~/-_=+";
 	std::vector<std::pair<cv::Mat,char>> ret;
@@ -134,11 +140,12 @@ static std::vector<std::pair<cv::Mat,char>> fillchars(int width, int height){
 		std::string b;
 		b = c;
 		cv::Mat tmp,cmp = text(height,b,ft2,cv::Scalar(255),cv::Scalar(0));
-		cv::resize(cmp,tmp,cv::Size(height,width),cv::INTER_CUBIC);
+		cv::resize(cmp,tmp,cv::Size(width,height),cv::INTER_CUBIC);
 		ret.push_back(std::pair<cv::Mat,char>(tmp,c));
 	}
 	return ret;
 }
+
 static cv::Mat img_pallet(cv::Mat& img, int pallet, cv::Mat &centers)
 {
 	img.convertTo(img, CV_32F);
