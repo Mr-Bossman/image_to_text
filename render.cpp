@@ -5,6 +5,7 @@
 #include <cmath>
 #include <atomic>
 #include <thread>
+#include <algorithm>
 #include <opencv2/opencv.hpp>
 #include <opencv2/freetype.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -16,6 +17,8 @@
 
 static std::vector<cv::Mat> splitImage(const cv::Mat &image, int M, int N);
 static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor);
+static void Pcolor_256(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor);
+static unsigned int calc_256_color(cv::Vec3f color);
 static cv::Mat text(int fontHeight,const std::string &text, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg);
 static char textImage(const cv::Mat& copy, bool &swap_pallet);
 static cv::Mat img_pallet(cv::Mat &img, int pallet, cv::Mat &centers);
@@ -80,7 +83,7 @@ static void display(const cv::Mat& img, int height, int width)
 	for (size_t i = 0; i < fg.size(); i++) {
 		if (i && i % width == 0)
 			puts("");
-		Pcolor(cha[i],fg[i], bg[i]);
+		Pcolor_256(cha[i],fg[i], bg[i]);
 	}
 	printf("\033[0m\n");
 }
@@ -90,6 +93,22 @@ static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor)
 	printf("\033[38;2;%u;%u;%um", (uint)fgcolor[2], (uint)fgcolor[1], (uint)fgcolor[0]);
 	printf("\033[48;2;%u;%u;%um", (uint)bgcolor[2], (uint)bgcolor[1], (uint)bgcolor[0]);
 	printf("%c", c);
+}
+
+static unsigned int calc_256_color(cv::Vec3f color)
+{
+	auto r = std::clamp(color[0], 0.0f, 255.0f);
+	auto g = std::clamp(color[1], 0.0f, 255.0f);
+	auto b = std::clamp(color[2], 0.0f, 255.0f);
+	unsigned int ri = round(r * 5.0 / 255.0);
+	unsigned int gi = round(g * 5.0 / 255.0);
+	unsigned int bi = round(b * 5.0 / 255.0);
+	return 16 + (36 * ri) + (6 * gi) + bi;
+}
+
+static void Pcolor_256(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor)
+{
+	printf("\033[38;5;%um\033[48;5;%um%c", calc_256_color(fgcolor), calc_256_color(bgcolor), c);
 }
 
 static cv::Mat text(int fontHeight, const std::string &txt, const cv::Ptr<cv::freetype::FreeType2> &ft2, cv::Scalar bg, cv::Scalar fg)
