@@ -97,9 +97,10 @@ static void Pcolor(char c, cv::Vec3f fgcolor, cv::Vec3f bgcolor)
 
 static unsigned int calc_256_color(cv::Vec3f color)
 {
-	auto r = std::clamp(color[0], 0.0f, 255.0f);
+	// In BGR format
+	auto r = std::clamp(color[2], 0.0f, 255.0f);
 	auto g = std::clamp(color[1], 0.0f, 255.0f);
-	auto b = std::clamp(color[2], 0.0f, 255.0f);
+	auto b = std::clamp(color[0], 0.0f, 255.0f);
 	unsigned int ri = round(r * 5.0 / 255.0);
 	unsigned int gi = round(g * 5.0 / 255.0);
 	unsigned int bi = round(b * 5.0 / 255.0);
